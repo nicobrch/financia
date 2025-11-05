@@ -3,13 +3,13 @@
 
 resource "google_project_service" "required_apis" {
   for_each = toset([
-    "secretmanager.googleapis.com",   # Secret Manager API
-    "run.googleapis.com",              # Cloud Run API
-    "iam.googleapis.com",              # IAM API
+    "secretmanager.googleapis.com",        # Secret Manager API
+    "run.googleapis.com",                  # Cloud Run API
+    "iam.googleapis.com",                  # IAM API
     "cloudresourcemanager.googleapis.com", # Cloud Resource Manager API
-    "logging.googleapis.com",          # Cloud Logging API
-    "monitoring.googleapis.com",       # Cloud Monitoring API
-    "serviceusage.googleapis.com",     # Service Usage API
+    "logging.googleapis.com",              # Cloud Logging API
+    "monitoring.googleapis.com",           # Cloud Monitoring API
+    "serviceusage.googleapis.com",         # Service Usage API
   ])
 
   project = var.project_id
