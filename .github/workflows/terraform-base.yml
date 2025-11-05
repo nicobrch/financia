@@ -1,4 +1,4 @@
-name: Terraform Operations (Reusable)
+name: tf-base
 
 on:
   workflow_call:
@@ -49,7 +49,7 @@ on:
 
 jobs:
   terraform-init:
-    name: Terraform Init
+    name: tf-init
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
 
@@ -88,7 +88,7 @@ jobs:
             ${{ runner.os }}-terraform-${{ inputs.environment }}-
 
   terraform-format:
-    name: Terraform Format Check
+    name: tf-fmt
     runs-on: ubuntu-latest
     needs: terraform-init
 
@@ -106,7 +106,7 @@ jobs:
         run: terraform fmt -check -recursive
 
   terraform-validate:
-    name: Terraform Validate
+    name: tf-validate
     runs-on: ubuntu-latest
     needs: terraform-init
     environment: ${{ inputs.environment }}
@@ -150,10 +150,12 @@ jobs:
         run: terraform validate
 
   terraform-plan:
-    name: Terraform Plan
+    name: tf-plan
     runs-on: ubuntu-latest
     needs: [terraform-format, terraform-validate]
     environment: ${{ inputs.environment }}
+    outputs:
+      status: ${{ steps.plan.outputs.status }}
 
     steps:
       - name: Checkout code
@@ -310,10 +312,10 @@ jobs:
           fi
 
   terraform-apply:
-    name: Terraform Apply (Manual)
+    name: tf-apply
     runs-on: ubuntu-latest
     needs: terraform-plan
-    if: github.event_name == 'workflow_dispatch'
+    if: ${{ needs.terraform-plan.outputs.status == 'changes' }}
     environment: ${{ inputs.environment }}
 
     steps:
