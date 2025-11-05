@@ -43,6 +43,20 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Check if Docker image exists
+        id: check_image
+        run: |
+          IMAGE="us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID_PROD }}/financia/api:latest"
+          if gcloud artifacts docker images describe $IMAGE --format="get(name)" 2>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Docker image exists: $IMAGE"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "❌ Docker image not found: $IMAGE"
+            echo "Please build and push the Docker image first using the docker-build workflow"
+            exit 1
+          fi
+
       - name: Terraform Init
         working-directory: ./terraform
         run: |
