@@ -1,0 +1,96 @@
+name: Terraform Apply (Dev)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "apply" to confirm deployment to DEV'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  terraform-apply:
+    name: Terraform Apply - Dev
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Validate Confirmation
+        if: ${{ github.event.inputs.confirm != 'apply' }}
+        run: |
+          echo "❌ Confirmation failed. You must type 'apply' to proceed."
+          exit 1
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SA_EMAIL_DEV }}
+          token_format: 'access_token'
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: |
+          terraform init -backend-config=environments/dev/backend.hcl
+
+      - name: Terraform Plan
+        working-directory: ./terraform
+        run: |
+          terraform plan \
+            -var-file=environments/dev/terraform.tfvars \
+            -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
+            -var="whatsapp_api_key=${{ secrets.WHATSAPP_API_KEY }}" \
+            -var="gemini_api_key=${{ secrets.GEMINI_API_KEY }}" \
+            -var="google_client_id=${{ secrets.GOOGLE_CLIENT_ID }}" \
+            -var="google_client_secret=${{ secrets.GOOGLE_CLIENT_SECRET }}" \
+            -var="google_refresh_token=${{ secrets.GOOGLE_REFRESH_TOKEN }}" \
+            -var="spreadsheet_id=${{ secrets.SPREADSHEET_ID_DEV }}" \
+            -var="whatsapp_webhook_verify_token=${{ secrets.WHATSAPP_WEBHOOK_VERIFY_TOKEN }}" \
+            -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: ./terraform
+        run: |
+          terraform apply -auto-approve tfplan
+
+      - name: Terraform Output
+        id: output
+        working-directory: ./terraform
+        run: |
+          echo "service_url=$(terraform output -raw service_url)" >> $GITHUB_OUTPUT
+          echo "service_name=$(terraform output -raw service_name)" >> $GITHUB_OUTPUT
+
+      - name: Create Deployment Summary
+        run: |
+          echo "## ✅ Terraform Apply Successful (Dev)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** dev" >> $GITHUB_STEP_SUMMARY
+          echo "**Service URL:** ${{ steps.output.outputs.service_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Service Name:** ${{ steps.output.outputs.service_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "- Test the health endpoint: \`curl ${{ steps.output.outputs.service_url }}/health\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Configure WhatsApp webhook URL: \`${{ steps.output.outputs.service_url }}/webhook\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "## ❌ Terraform Apply Failed (Dev)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check the logs above for error details." >> $GITHUB_STEP_SUMMARY
