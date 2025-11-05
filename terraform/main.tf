@@ -31,7 +31,7 @@ module "iam" {
 module "secret_manager" {
   source = "./modules/secret_manager"
 
-  project_id = var.project_id
+  project_id  = var.project_id
   environment = var.environment
 
   secrets = {
@@ -43,7 +43,7 @@ module "secret_manager" {
   }
 
   service_account_email = module.iam.app_service_account_email
-  labels               = local.labels
+  labels                = local.labels
 }
 
 # Cloud Run Module - Deploy Application
@@ -79,11 +79,11 @@ module "cloud_run" {
   service_account_email = module.iam.app_service_account_email
 
   # Resource limits
-  min_instances    = var.min_instances
-  max_instances    = var.max_instances
-  memory_limit     = var.memory_limit
-  cpu_limit        = var.cpu_limit
-  timeout_seconds  = var.timeout_seconds
+  min_instances   = var.min_instances
+  max_instances   = var.max_instances
+  memory_limit    = var.memory_limit
+  cpu_limit       = var.cpu_limit
+  timeout_seconds = var.timeout_seconds
 
   depends_on = [module.iam, module.secret_manager]
 }
@@ -92,11 +92,11 @@ module "cloud_run" {
 module "monitoring" {
   source = "./modules/monitoring"
 
-  project_id              = var.project_id
-  service_name            = var.service_name
-  environment             = var.environment
-  notification_email      = var.alert_notification_email
-  cloud_run_service_name  = module.cloud_run.service_name
+  project_id             = var.project_id
+  service_name           = var.service_name
+  environment            = var.environment
+  notification_email     = var.alert_notification_email
+  cloud_run_service_name = module.cloud_run.service_name
 
   labels = local.labels
 
