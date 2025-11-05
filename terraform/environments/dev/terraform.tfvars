@@ -14,7 +14,7 @@ cpu_limit       = "1"
 timeout_seconds = 300
 
 # Monitoring
-alert_notification_email = ""  # Set to your email if you want alerts in dev
+alert_notification_email = "" # Set to your email if you want alerts in dev
 
 # Note: Sensitive variables (API keys, tokens, etc.) are passed via GitHub Secrets
 # and should NOT be committed to this file
