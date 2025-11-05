@@ -11,7 +11,8 @@ variable "environment" {
 variable "secrets" {
   description = "Map of secret names to secret values"
   type        = map(string)
-  sensitive   = true
+  # Note: Not marked as sensitive here because for_each keys cannot be sensitive.
+  # The actual secret values are still protected when stored in Secret Manager.
 }
 
 variable "service_account_email" {
