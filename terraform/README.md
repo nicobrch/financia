@@ -7,6 +7,7 @@ This directory contains Infrastructure as Code (IaC) for the Financia applicatio
 ```
 terraform/
 ├── main.tf                    # Root module - orchestrates all modules
+├── apis.tf                    # GCP API enablement
 ├── variables.tf               # Input variables
 ├── outputs.tf                 # Output values
 ├── versions.tf                # Terraform and provider versions
@@ -22,7 +23,8 @@ terraform/
     ├── iam/                   # Service accounts and IAM roles
     ├── secret_manager/        # Secret Manager configuration
     ├── cloud_run/             # Cloud Run service
-    └── monitoring/            # Logging and alerting
+    ├── monitoring/            # Logging and alerting
+    └── workload_identity/     # Workload Identity Federation
 ```
 
 ## 🚀 Quick Start
@@ -66,10 +68,24 @@ terraform apply -var-file=environments/dev/terraform.tfvars [... same vars as pl
 
 ### Resources Managed
 
+- **APIs**: Automatic enablement of required GCP APIs
 - **IAM**: Service accounts with granular permissions
 - **Secret Manager**: Secure storage for API keys and credentials
 - **Cloud Run**: Serverless application hosting
 - **Monitoring**: Alerts, dashboards, and log sinks
+
+### API Management
+
+The `apis.tf` file automatically enables the following GCP APIs:
+- Secret Manager API
+- Cloud Run API
+- IAM API
+- Cloud Resource Manager API
+- Cloud Logging API
+- Cloud Monitoring API
+- Service Usage API
+
+**Important**: The APIs are enabled with a 30-second delay to ensure full propagation before other resources are created. This prevents the `SERVICE_DISABLED` error.
 
 ### Multi-Environment Strategy
 
