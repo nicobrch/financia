@@ -232,7 +232,7 @@ jobs:
 
       - name: Upload Plan Artifact
         if: steps.plan.outputs.status == 'changes'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: tfplan-${{ inputs.environment }}
           path: terraform/tfplan
@@ -347,7 +347,7 @@ jobs:
           terraform init -backend-config=${{ inputs.terraform_backend }}
 
       - name: Download Plan Artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         continue-on-error: true
         with:
           name: tfplan-${{ inputs.environment }}
