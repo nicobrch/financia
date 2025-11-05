@@ -59,7 +59,7 @@ jobs:
           set +e
           terraform plan \
             -var-file=environments/dev/terraform.tfvars \
-            -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
+            -var="project_id=${{ secrets.GCP_PROJECT_ID_DEV }}" \
             -var="whatsapp_api_key=${{ secrets.WHATSAPP_API_KEY }}" \
             -var="gemini_api_key=${{ secrets.GEMINI_API_KEY }}" \
             -var="google_client_id=${{ secrets.GOOGLE_CLIENT_ID }}" \
