@@ -6,15 +6,13 @@ on:
       - main
     paths:
       - 'terraform/**'
-      - '.github/workflows/prod/**'
-      - '.github/workflows/base/terraform.yml'
+      - '.github/workflows/terraform-*.yml'
   push:
     branches:
       - main
     paths:
       - 'terraform/**'
-      - '.github/workflows/prod/**'
-      - '.github/workflows/base/terraform.yml'
+      - '.github/workflows/terraform-*.yml'
   workflow_dispatch:
     inputs:
       confirm:
@@ -30,7 +28,7 @@ permissions:
 jobs:
   terraform:
     name: Terraform Operations
-    uses: ./.github/workflows/base/terraform.yml
+    uses: ./.github/workflows/terraform-base.yml
     with:
       environment: prod
       branch_trigger: main

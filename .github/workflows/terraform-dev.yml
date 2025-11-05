@@ -7,21 +7,20 @@ on:
       - main
     paths:
       - 'terraform/**'
-      - '.github/workflows/dev/**'
-      - '.github/workflows/base/terraform.yml'
+      - '.github/workflows/terraform-*.yml'
   push:
     branches:
       - develop
     paths:
       - 'terraform/**'
-      - '.github/workflows/dev/**'
-      - '.github/workflows/base/terraform.yml'
+      - '.github/workflows/terraform-*.yml'
   workflow_dispatch:
     inputs:
       confirm:
         description: 'Type "apply" to confirm deployment'
-        required: true
+        required: false
         type: string
+        default: ''
 
 permissions:
   contents: read
@@ -31,7 +30,7 @@ permissions:
 jobs:
   terraform:
     name: Terraform Operations
-    uses: ./.github/workflows/base/terraform.yml
+    uses: ./.github/workflows/terraform-base.yml
     with:
       environment: dev
       branch_trigger: develop
