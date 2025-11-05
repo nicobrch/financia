@@ -1,0 +1,51 @@
+name: Terraform - Dev Environment
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/dev/**'
+      - '.github/workflows/base/terraform.yml'
+  push:
+    branches:
+      - develop
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/dev/**'
+      - '.github/workflows/base/terraform.yml'
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "apply" to confirm deployment'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  terraform:
+    name: Terraform Operations
+    uses: ./.github/workflows/base/terraform.yml
+    with:
+      environment: dev
+      branch_trigger: develop
+      terraform_backend: environments/dev/backend.hcl
+      apply_confirmation: apply
+      run_smoke_tests: false
+    secrets:
+      WIF_PROVIDER: ${{ secrets.WIF_PROVIDER }}
+      WIF_SA_EMAIL: ${{ secrets.WIF_SA_EMAIL_DEV }}
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_DEV }}
+      WHATSAPP_API_KEY: ${{ secrets.WHATSAPP_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+      SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID_DEV }}
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${{ secrets.WHATSAPP_WEBHOOK_VERIFY_TOKEN }}

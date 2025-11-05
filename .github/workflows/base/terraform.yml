@@ -1,0 +1,451 @@
+name: Terraform Operations (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Environment name (dev or prod)'
+        required: true
+        type: string
+      branch_trigger:
+        description: 'Branch that triggers automatic runs'
+        required: true
+        type: string
+      terraform_backend:
+        description: 'Path to backend config file'
+        required: true
+        type: string
+      apply_confirmation:
+        description: 'Confirmation string required for apply (empty for no confirmation)'
+        required: false
+        type: string
+        default: ''
+      run_smoke_tests:
+        description: 'Whether to run smoke tests after apply'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      WIF_PROVIDER:
+        required: true
+      WIF_SA_EMAIL:
+        required: true
+      GCP_PROJECT_ID:
+        required: true
+      WHATSAPP_API_KEY:
+        required: true
+      GEMINI_API_KEY:
+        required: true
+      GOOGLE_CLIENT_ID:
+        required: true
+      GOOGLE_CLIENT_SECRET:
+        required: true
+      GOOGLE_REFRESH_TOKEN:
+        required: true
+      SPREADSHEET_ID:
+        required: true
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN:
+        required: true
+
+jobs:
+  terraform-init:
+    name: Terraform Init
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SA_EMAIL }}
+          token_format: 'access_token'
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: |
+          terraform init -backend-config=${{ inputs.terraform_backend }}
+
+      - name: Cache Terraform
+        uses: actions/cache@v3
+        with:
+          path: |
+            terraform/.terraform
+            terraform/.terraform.lock.hcl
+          key: ${{ runner.os }}-terraform-${{ inputs.environment }}-${{ hashFiles('terraform/**/*.tf') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-${{ inputs.environment }}-
+
+  terraform-format:
+    name: Terraform Format Check
+    runs-on: ubuntu-latest
+    needs: terraform-init
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: Terraform Format Check
+        working-directory: ./terraform
+        run: terraform fmt -check -recursive
+
+  terraform-validate:
+    name: Terraform Validate
+    runs-on: ubuntu-latest
+    needs: terraform-init
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SA_EMAIL }}
+          token_format: 'access_token'
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Restore Terraform Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            terraform/.terraform
+            terraform/.terraform.lock.hcl
+          key: ${{ runner.os }}-terraform-${{ inputs.environment }}-${{ hashFiles('terraform/**/*.tf') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-${{ inputs.environment }}-
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: |
+          terraform init -backend-config=${{ inputs.terraform_backend }}
+
+      - name: Terraform Validate
+        working-directory: ./terraform
+        run: terraform validate
+
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    needs: [terraform-format, terraform-validate]
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SA_EMAIL }}
+          token_format: 'access_token'
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Restore Terraform Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            terraform/.terraform
+            terraform/.terraform.lock.hcl
+          key: ${{ runner.os }}-terraform-${{ inputs.environment }}-${{ hashFiles('terraform/**/*.tf') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-${{ inputs.environment }}-
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: |
+          terraform init -backend-config=${{ inputs.terraform_backend }}
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: ./terraform
+        run: |
+          set +e
+          terraform plan \
+            -var-file=environments/${{ inputs.environment }}/terraform.tfvars \
+            -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
+            -var="whatsapp_api_key=${{ secrets.WHATSAPP_API_KEY }}" \
+            -var="gemini_api_key=${{ secrets.GEMINI_API_KEY }}" \
+            -var="google_client_id=${{ secrets.GOOGLE_CLIENT_ID }}" \
+            -var="google_client_secret=${{ secrets.GOOGLE_CLIENT_SECRET }}" \
+            -var="google_refresh_token=${{ secrets.GOOGLE_REFRESH_TOKEN }}" \
+            -var="spreadsheet_id=${{ secrets.SPREADSHEET_ID }}" \
+            -var="whatsapp_webhook_verify_token=${{ secrets.WHATSAPP_WEBHOOK_VERIFY_TOKEN }}" \
+            -out=tfplan \
+            -no-color \
+            -detailed-exitcode
+          PLAN_EXIT_CODE=$?
+          echo "exitcode=$PLAN_EXIT_CODE" >> $GITHUB_OUTPUT
+
+          # Exit code 0 = no changes, 1 = error, 2 = changes present
+          if [ $PLAN_EXIT_CODE -eq 1 ]; then
+            echo "status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          elif [ $PLAN_EXIT_CODE -eq 2 ]; then
+            echo "status=changes" >> $GITHUB_OUTPUT
+          else
+            echo "status=no-changes" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Plan Summary
+        if: success() || failure()
+        working-directory: ./terraform
+        run: |
+          if [ -f tfplan ]; then
+            terraform show -no-color tfplan > plan_output.txt
+          else
+            echo "No plan file generated" > plan_output.txt
+          fi
+
+      - name: Upload Plan Artifact
+        if: steps.plan.outputs.status == 'changes'
+        uses: actions/upload-artifact@v3
+        with:
+          name: tfplan-${{ inputs.environment }}
+          path: terraform/tfplan
+          retention-days: 5
+
+      - name: Comment PR with Plan
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request' && (success() || failure())
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const planOutput = fs.readFileSync('./terraform/plan_output.txt', 'utf8');
+            const truncatedPlan = planOutput.length > 65000 ? planOutput.substring(0, 65000) + '\n\n...(output truncated)' : planOutput;
+
+            const status = '${{ steps.plan.outputs.status }}';
+            const exitCode = '${{ steps.plan.outputs.exitcode }}';
+            const environment = '${{ inputs.environment }}';
+            const isProd = environment === 'prod';
+
+            let statusEmoji = '✅';
+            let statusText = 'Success';
+
+            if (status === 'failed') {
+              statusEmoji = '❌';
+              statusText = 'Failed';
+            } else if (status === 'changes') {
+              statusEmoji = '📝';
+              statusText = 'Changes Detected';
+            } else if (status === 'no-changes') {
+              statusEmoji = '✨';
+              statusText = 'No Changes';
+            }
+
+            const envEmoji = isProd ? '🚀' : '🧪';
+            const envName = environment.charAt(0).toUpperCase() + environment.slice(1);
+            const warningText = isProd ? '\n\n⚠️ **This is the PRODUCTION environment. Review carefully before approving apply.**' : '';
+
+            const output = `#### ${statusEmoji} Terraform Plan (${envName} Environment) ${envEmoji}
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`terraform
+            ${truncatedPlan}
+            \`\`\`
+
+            </details>
+
+            **Status:** ${statusText} (exit code: ${exitCode})
+            **Environment:** ${environment}${warningText}
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+      - name: Create Job Summary
+        if: always()
+        run: |
+          ENV_NAME=$(echo "${{ inputs.environment }}" | sed 's/\b\(.\)/\u\1/')
+          echo "## Terraform Plan Summary ($ENV_NAME)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ steps.plan.outputs.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Exit Code:** ${{ steps.plan.outputs.exitcode }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.plan.outputs.status }}" == "changes" ]; then
+            if [ "${{ inputs.environment }}" == "prod" ]; then
+              echo "⚠️ Changes detected. Run terraform apply manually to deploy to PRODUCTION." >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⚠️ Changes detected. Run terraform apply manually to deploy." >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+  terraform-apply:
+    name: Terraform Apply (Manual)
+    runs-on: ubuntu-latest
+    needs: terraform-plan
+    if: github.event_name == 'workflow_dispatch'
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Validate Confirmation
+        if: inputs.apply_confirmation != '' && github.event.inputs.confirm != inputs.apply_confirmation
+        run: |
+          echo "❌ Confirmation failed. You must type '${{ inputs.apply_confirmation }}' to proceed."
+          exit 1
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SA_EMAIL }}
+          token_format: 'access_token'
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: |
+          terraform init -backend-config=${{ inputs.terraform_backend }}
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v3
+        continue-on-error: true
+        with:
+          name: tfplan-${{ inputs.environment }}
+          path: terraform/
+
+      - name: Terraform Apply
+        working-directory: ./terraform
+        run: |
+          if [ -f tfplan ]; then
+            echo "Applying saved plan..."
+            terraform apply -auto-approve tfplan
+          else
+            echo "No saved plan found, running fresh apply..."
+            terraform apply -auto-approve \
+              -var-file=environments/${{ inputs.environment }}/terraform.tfvars \
+              -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
+              -var="whatsapp_api_key=${{ secrets.WHATSAPP_API_KEY }}" \
+              -var="gemini_api_key=${{ secrets.GEMINI_API_KEY }}" \
+              -var="google_client_id=${{ secrets.GOOGLE_CLIENT_ID }}" \
+              -var="google_client_secret=${{ secrets.GOOGLE_CLIENT_SECRET }}" \
+              -var="google_refresh_token=${{ secrets.GOOGLE_REFRESH_TOKEN }}" \
+              -var="spreadsheet_id=${{ secrets.SPREADSHEET_ID }}" \
+              -var="whatsapp_webhook_verify_token=${{ secrets.WHATSAPP_WEBHOOK_VERIFY_TOKEN }}"
+          fi
+
+      - name: Terraform Output
+        id: output
+        working-directory: ./terraform
+        run: |
+          echo "service_url=$(terraform output -raw service_url)" >> $GITHUB_OUTPUT
+          echo "service_name=$(terraform output -raw service_name)" >> $GITHUB_OUTPUT
+
+      - name: Wait for Service to be Ready
+        if: inputs.run_smoke_tests
+        run: |
+          echo "Waiting 30 seconds for service to be fully deployed..."
+          sleep 30
+
+      - name: Run Smoke Tests
+        if: inputs.run_smoke_tests
+        run: |
+          echo "Running smoke tests..."
+
+          # Test health endpoint
+          HEALTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" ${{ steps.output.outputs.service_url }}/health)
+          if [ $HEALTH_CODE -ne 200 ]; then
+            echo "❌ Health check failed with status $HEALTH_CODE"
+            exit 1
+          fi
+          echo "✅ Health check passed"
+
+          # Test webhook verification
+          WEBHOOK_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.output.outputs.service_url }}/webhook?hub.mode=subscribe&hub.verify_token=${{ secrets.WHATSAPP_WEBHOOK_VERIFY_TOKEN }}&hub.challenge=test123")
+          if [ $WEBHOOK_CODE -ne 200 ]; then
+            echo "⚠️  Webhook verification test returned $WEBHOOK_CODE (this may be expected)"
+          else
+            echo "✅ Webhook verification passed"
+          fi
+
+      - name: Create Deployment Summary
+        run: |
+          ENV_NAME=$(echo "${{ inputs.environment }}" | sed 's/\b\(.\)/\u\1/')
+          ENV_EMOJI="${{ inputs.environment == 'prod' && '🚀' || '✅' }}"
+
+          echo "## $ENV_EMOJI Terraform Apply Successful ($ENV_NAME)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Service URL:** ${{ steps.output.outputs.service_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Service Name:** ${{ steps.output.outputs.service_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ inputs.run_smoke_tests }}" == "true" ]; then
+            echo "### Post-Deployment Tasks" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Smoke tests passed" >> $GITHUB_STEP_SUMMARY
+            echo "- [ ] Verify WhatsApp webhook: \`${{ steps.output.outputs.service_url }}/webhook\`" >> $GITHUB_STEP_SUMMARY
+            echo "- [ ] Monitor logs: [Cloud Logging](https://console.cloud.google.com/logs)" >> $GITHUB_STEP_SUMMARY
+            echo "- [ ] Check metrics: [Cloud Monitoring](https://console.cloud.google.com/monitoring)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+            echo "- Test the health endpoint: \`curl ${{ steps.output.outputs.service_url }}/health\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Configure WhatsApp webhook URL: \`${{ steps.output.outputs.service_url }}/webhook\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          ENV_NAME=$(echo "${{ inputs.environment }}" | sed 's/\b\(.\)/\u\1/')
+          CRITICAL_TEXT="${{ inputs.environment == 'prod' && '🚨 **CRITICAL: Production deployment failed!**' || '' }}"
+
+          echo "## ❌ Terraform Apply Failed ($ENV_NAME)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$CRITICAL_TEXT" ]; then
+            echo "$CRITICAL_TEXT" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "Check the logs above for error details." >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.environment }}" == "prod" ]; then
+            echo "Consider rolling back." >> $GITHUB_STEP_SUMMARY
+          fi

@@ -1,0 +1,50 @@
+name: Terraform - Prod Environment
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/prod/**'
+      - '.github/workflows/base/terraform.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/prod/**'
+      - '.github/workflows/base/terraform.yml'
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "apply-prod" to confirm PRODUCTION deployment'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  terraform:
+    name: Terraform Operations
+    uses: ./.github/workflows/base/terraform.yml
+    with:
+      environment: prod
+      branch_trigger: main
+      terraform_backend: environments/prod/backend.hcl
+      apply_confirmation: apply-prod
+      run_smoke_tests: true
+    secrets:
+      WIF_PROVIDER: ${{ secrets.WIF_PROVIDER }}
+      WIF_SA_EMAIL: ${{ secrets.WIF_SA_EMAIL_PROD }}
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_PROD }}
+      WHATSAPP_API_KEY: ${{ secrets.WHATSAPP_API_KEY_PROD }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY_PROD }}
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID_PROD }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET_PROD }}
+      GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN_PROD }}
+      SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID_PROD }}
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${{ secrets.WHATSAPP_WEBHOOK_VERIFY_TOKEN_PROD }}
