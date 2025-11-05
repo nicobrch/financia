@@ -25,6 +25,8 @@ module "iam" {
   app_name    = local.app_name
   environment = var.environment
   labels      = local.labels
+
+  depends_on = [time_sleep.wait_for_apis]
 }
 
 # Secret Manager Module - Store Application Secrets
@@ -44,6 +46,8 @@ module "secret_manager" {
 
   service_account_email = module.iam.app_service_account_email
   labels                = local.labels
+
+  depends_on = [time_sleep.wait_for_apis]
 }
 
 # Cloud Run Module - Deploy Application
