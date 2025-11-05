@@ -1,7 +1,7 @@
 resource "google_cloud_run_v2_service" "app" {
   name     = var.service_name
   location = var.region
-  ingress  = upper(replace(var.ingress, "-", "_"))
+  ingress  = var.ingress == "all" ? "INGRESS_TRAFFIC_ALL" : (var.ingress == "internal" ? "INGRESS_TRAFFIC_INTERNAL_ONLY" : "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER")
 
   labels = var.labels
 

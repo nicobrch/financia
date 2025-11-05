@@ -83,7 +83,12 @@ variable "concurrency" {
 }
 
 variable "ingress" {
-  description = "Ingress settings (all, internal, internal-and-cloud-load-balancing)"
+  description = "Ingress settings: 'all' (INGRESS_TRAFFIC_ALL), 'internal' (INGRESS_TRAFFIC_INTERNAL_ONLY), or 'internal-lb' (INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER)"
   type        = string
   default     = "all"
+
+  validation {
+    condition     = contains(["all", "internal", "internal-lb"], var.ingress)
+    error_message = "Ingress must be one of: all, internal, internal-lb"
+  }
 }
